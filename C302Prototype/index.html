@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ALTLab Vocabulary Explorer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Epilogue:wght@600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <div class="phone-frame">
+    <div class="phone-screen">
+
+      <!-- ═══════════════════════════════════════════════════
+           SCREEN 1 – HOME
+      ════════════════════════════════════════════════════ -->
+      <div id="screen-home" class="screen active">
+        <header class="app-header">
+          <span class="app-title">AItLAB Explore</span>
+          <button class="user-icon-btn" id="btn-go-account" aria-label="Account">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+            </svg>
+            <span class="expert-badge hidden" id="home-expert-badge"></span>
+          </button>
+        </header>
+        <div class="screen-body">
+          <div class="search-bar-wrap" style="position:relative">
+            <svg class="icon search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input id="home-search-input" class="search-input" type="text" placeholder="Search Cree or English…" autocomplete="off" />
+            <div id="home-suggestions" class="suggestions-dropdown hidden"></div>
+          </div>
+          <p class="section-label">Browse by theme</p>
+          <div class="theme-grid" id="theme-grid"></div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════
+           SCREEN 2 – SEARCH RESULTS
+      ════════════════════════════════════════════════════ -->
+      <div id="screen-search" class="screen">
+        <header class="screen-header">
+          <button class="back-btn" id="btn-search-back">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+            <span id="search-back-label">Home</span>
+          </button>
+          <div class="search-bar-wrap inline" style="position:relative">
+            <svg class="icon search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input id="search-query-input" class="search-input" type="text" autocomplete="off" />
+            <div id="search-suggestions" class="suggestions-dropdown hidden"></div>
+          </div>
+          <button class="text-btn" id="btn-search-select-toggle">Select</button>
+        </header>
+
+        <!-- Select-mode bar -->
+        <div id="select-mode-bar" class="select-mode-bar hidden">
+          <button class="chip chip-outline" id="btn-select-all">Select All</button>
+          <span class="select-count" id="select-count-label">0 selected</span>
+          <button class="text-btn danger" id="btn-cancel-select">Cancel</button>
+        </div>
+
+        <div class="chip-row" id="search-filter-chips">
+          <button class="chip chip-active" data-filter="all">All</button>
+          <button class="chip" data-filter="noun">Nouns</button>
+          <button class="chip" data-filter="verb">Verbs</button>
+          <button class="chip" data-filter="related">Related</button>
+        </div>
+
+        <div class="screen-body">
+          <!-- Idle state — shown before any search is entered -->
+          <div id="search-idle-state" class="empty-state">
+            <div class="empty-icon">🌿</div>
+            <p class="empty-title">Search Cree or English</p>
+            <p class="empty-sub">Type a word above to find its meaning, related forms, and connections.</p>
+          </div>
+
+          <p class="results-count" id="results-count"></p>
+          <div id="search-results-list"></div>
+
+          <!-- No results empty state -->
+          <div id="search-empty-state" class="empty-state hidden">
+            <div class="empty-icon">🔍</div>
+            <p class="empty-title" id="search-empty-title">No results found</p>
+            <p class="empty-sub">Try a different spelling or browse by theme</p>
+            <button class="btn-primary" id="btn-empty-browse">Browse Themes</button>
+          </div>
+        </div>
+
+        <!-- Add-to-folder action bar (multi-select) -->
+        <div id="add-to-folder-bar" class="action-bar hidden">
+          <button class="btn-primary full-width" id="btn-add-to-folder-action">
+            Add to Folder
+          </button>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════
+           SCREEN 3 – WORD DETAIL
+      ════════════════════════════════════════════════════ -->
+      <div id="screen-word-detail" class="screen">
+        <header class="screen-header">
+          <button class="back-btn" id="btn-word-detail-back">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+            <span id="word-detail-back-label">Results</span>
+          </button>
+          <button class="bookmark-btn" id="btn-word-detail-bookmark" aria-label="Bookmark word">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="bookmark-icon-detail">
+              <path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/>
+            </svg>
+          </button>
+        </header>
+
+        <div class="screen-body">
+          <!-- Hero card -->
+          <div class="hero-card" id="word-detail-hero">
+            <div class="hero-cree" id="hero-cree"></div>
+            <div class="hero-english" id="hero-english"></div>
+            <div class="hero-tags">
+              <span class="tag tag-class" id="hero-class"></span>
+              <span class="tag tag-theme" id="hero-theme"></span>
+            </div>
+          </div>
+
+          <!-- Tab chips -->
+          <div class="tab-row" id="word-detail-tabs">
+            <button class="tab active" data-tab="related">Related words</button>
+            <button class="tab" data-tab="forms">Forms</button>
+            <button class="tab" data-tab="details">Details</button>
+          </div>
+
+          <!-- Tab: Related words -->
+          <div id="tab-related" class="tab-panel">
+            <div id="related-words-list"></div>
+          </div>
+
+          <!-- Tab: Forms -->
+          <div id="tab-forms" class="tab-panel hidden">
+            <div id="forms-table"></div>
+          </div>
+
+          <!-- Tab: Details -->
+          <div id="tab-details" class="tab-panel hidden">
+            <div id="details-table"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════
+           SCREEN 4 – ACCOUNT
+      ════════════════════════════════════════════════════ -->
+      <div id="screen-account" class="screen">
+        <header class="screen-header">
+          <button class="back-btn" id="btn-account-back">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+            <span>Home</span>
+          </button>
+          <span class="header-title">Account</span>
+        </header>
+        <div class="screen-body">
+          <div class="profile-card">
+            <div class="avatar">G</div>
+            <span class="profile-name">Guest</span>
+          </div>
+
+          <div class="settings-card">
+            <div class="setting-row">
+              <div class="setting-text">
+                <span class="setting-label">Expert Mode</span>
+                <span class="setting-sub">Show full linguistic and morphological data</span>
+              </div>
+              <label class="toggle-switch">
+                <input type="checkbox" id="expert-mode-toggle" />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+            <div id="expert-mode-note" class="expert-mode-note hidden">
+              Expert Mode is on. Word details will show full morphological analysis.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════
+           SCREEN 5 – WORD MAP
+      ════════════════════════════════════════════════════ -->
+      <div id="screen-word-map" class="screen">
+        <header class="screen-header">
+          <button class="back-btn" id="btn-word-map-back">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+            <span id="word-map-back-label" class="hidden"></span>
+          </button>
+          <span class="header-title">Word Map</span>
+          <button class="help-btn" id="btn-help-wordmap" aria-label="Help with Word Map" style="margin-left:auto">?</button>
+        </header>
+
+        <div class="chip-row" id="wordmap-filter-chips" style="flex-wrap:nowrap">
+          <button class="chip chip-active" data-wm-filter="all">All</button>
+          <button class="chip" data-wm-filter="similar">Similar</button>
+          <button class="chip" data-wm-filter="broader">Broader</button>
+          <button class="chip" data-wm-filter="derived">Derived</button>
+          <button class="chip" data-wm-filter="opposite">Opposite</button>
+        </div>
+
+        <div class="wordmap-container">
+          <svg id="wordmap-svg" width="100%" height="100%"></svg>
+        </div>
+
+        <div class="wordmap-legend">
+          <span class="legend-item"><span class="legend-dot similar"></span>Similar</span>
+          <span class="legend-item"><span class="legend-dot broader"></span>Broader</span>
+          <span class="legend-item"><span class="legend-dot opposite"></span>Opposite</span>
+          <span class="legend-item"><span class="legend-dot derived"></span>Derived</span>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════
+           SCREEN 6 – EXPERT VIEW
+      ════════════════════════════════════════════════════ -->
+      <div id="screen-expert-view" class="screen">
+        <header class="screen-header expert-header">
+          <button class="back-btn back-btn-light" id="btn-expert-back">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+            <span id="expert-back-label">Results</span>
+          </button>
+          <div class="expert-header-center">
+            <span class="expert-word-title" id="expert-word-title"></span>
+            <span class="expert-word-sub" id="expert-word-sub"></span>
+          </div>
+          <button class="help-btn" id="btn-help-expert" aria-label="Help with Expert View" style="margin-left:auto;margin-right:6px">?</button>
+          <button class="bookmark-btn bookmark-btn-light" id="btn-expert-bookmark" aria-label="Bookmark word" style="margin-left:0">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" id="bookmark-icon-expert">
+              <path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/>
+            </svg>
+          </button>
+        </header>
+
+        <div class="screen-body">
+          <!-- Translation card -->
+          <div class="expert-translation-card">
+            <span class="expert-translation-label">English</span>
+            <span class="expert-translation-text" id="expert-translation-text"></span>
+          </div>
+
+          <!-- Morphological Analysis -->
+          <div class="expert-section">
+            <h3 class="expert-section-title">Morphological Analysis</h3>
+            <div class="morph-tags" id="morph-tags"></div>
+            <div class="morph-rows" id="morph-rows"></div>
+          </div>
+
+          <!-- Semantic Relations -->
+          <div class="expert-section">
+            <h3 class="expert-section-title">Semantic Relations (Full)</h3>
+            <div id="sem-relations"></div>
+          </div>
+
+          <!-- Semantic Gap Analysis -->
+          <div class="expert-section">
+            <h3 class="expert-section-title">Semantic Gap Analysis</h3>
+            <div id="sem-gaps"></div>
+            <p id="sem-gaps-empty" class="empty-sub hidden" style="padding: var(--sp-12) 14px var(--sp-16)">No semantic gaps identified for this word.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════
+           SCREEN 7 – SAVED – FOLDER LIST
+      ════════════════════════════════════════════════════ -->
+      <div id="screen-saved" class="screen">
+        <header class="app-header">
+          <span class="app-title">Saved</span>
+        </header>
+
+        <div class="chip-row" id="saved-filter-chips">
+          <button class="chip chip-active" data-saved-filter="all">All Folders</button>
+          <button class="chip" data-saved-filter="recent">Recent</button>
+          <button class="chip" data-saved-filter="shared">Shared</button>
+        </div>
+
+        <div class="screen-body" id="saved-folder-list-body">
+          <div id="saved-folders-container"></div>
+          <div id="saved-empty-state" class="empty-state hidden">
+            <div class="empty-icon">🔖</div>
+            <p class="empty-title">No saved words yet</p>
+            <p class="empty-sub">Start by searching for a word and tapping the bookmark icon</p>
+          </div>
+          <!-- New folder card -->
+          <button class="new-folder-card" id="btn-new-folder-card">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            New folder
+          </button>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════
+           SCREEN 8 – SAVED – FOLDER OPEN
+      ════════════════════════════════════════════════════ -->
+      <div id="screen-folder-open" class="screen">
+        <header class="screen-header">
+          <button class="back-btn" id="btn-folder-back">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+            <span>Saved</span>
+          </button>
+          <span class="header-title" id="folder-open-title">Folder</span>
+          <button class="text-btn" id="btn-folder-select-toggle" style="margin-left:auto">Select</button>
+        </header>
+
+        <!-- Folder select-mode bar -->
+        <div id="folder-select-mode-bar" class="select-mode-bar hidden">
+          <button class="chip chip-outline" id="btn-folder-select-all">Select All</button>
+          <span class="select-count" id="folder-select-count-label">0 selected</span>
+          <button class="text-btn danger" id="btn-folder-cancel-select">Cancel</button>
+        </div>
+
+        <div class="folder-summary-card" id="folder-summary-card">
+          <div class="folder-summary-info">
+            <span class="folder-summary-name" id="folder-summary-name"></span>
+            <span class="folder-summary-meta" id="folder-summary-meta"></span>
+          </div>
+          <button class="btn-export" id="btn-folder-export">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+            Export
+          </button>
+        </div>
+
+        <div class="chip-row" id="folder-filter-chips">
+          <button class="chip chip-active" data-folder-filter="all">All</button>
+          <button class="chip" data-folder-filter="verb">Verbs</button>
+          <button class="chip" data-folder-filter="noun">Nouns</button>
+        </div>
+
+        <div class="screen-body">
+          <p class="section-label" id="folder-word-count-label"></p>
+          <div id="folder-words-list"></div>
+
+          <div id="folder-empty-state" class="empty-state hidden">
+            <div class="empty-icon">📂</div>
+            <p class="empty-title">This folder has no words yet</p>
+          </div>
+
+          <button class="add-word-btn" id="btn-add-word-to-folder">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Add word to folder
+          </button>
+        </div>
+
+        <!-- Remove-from-folder action bar (multi-select) -->
+        <div id="folder-remove-bar" class="action-bar hidden">
+          <button class="btn-danger full-width" id="btn-remove-from-folder-action">
+            Remove from Folder
+          </button>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════
+           SCREEN 9 – EXPORT SCREEN
+      ════════════════════════════════════════════════════ -->
+      <div id="screen-export" class="screen">
+        <header class="screen-header">
+          <button class="back-btn" id="btn-export-back">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+            <span id="export-back-label">Folder</span>
+          </button>
+          <span class="header-title">Export</span>
+          <button class="help-btn" id="btn-help-export" aria-label="Help with Export" style="margin-left:auto">?</button>
+        </header>
+        <div class="screen-body">
+          <div class="export-header-block">
+            <p class="export-folder-name" id="export-folder-name"></p>
+            <p class="export-meta" id="export-meta"></p>
+          </div>
+          <div id="export-options-list" class="export-options-list"></div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════
+           SCREEN 10 – ERROR
+      ════════════════════════════════════════════════════ -->
+      <div id="screen-error" class="screen">
+        <header class="screen-header">
+          <button class="back-btn" id="btn-error-back">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+            <span>Home</span>
+          </button>
+        </header>
+        <div class="error-screen-body">
+          <div class="error-icon">⚠️</div>
+          <p class="error-title">Something went wrong</p>
+          <p class="error-desc" id="error-desc">An unexpected error occurred.</p>
+          <button class="btn-primary" id="btn-error-go-home">Go Home</button>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════
+           OVERLAYS & SHEETS
+      ════════════════════════════════════════════════════ -->
+
+      <!-- Folder Picker Sheet -->
+      <div id="folder-picker-sheet" class="bottom-sheet hidden">
+        <div class="sheet-handle"></div>
+        <div class="sheet-header">
+          <button class="back-btn" id="btn-folder-picker-cancel">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+            <span>Cancel</span>
+          </button>
+          <span class="sheet-title" id="folder-picker-title">Save to folder</span>
+        </div>
+        <div id="folder-picker-list" class="sheet-body"></div>
+      </div>
+
+      <!-- Folder Actions Sheet (Edit button) -->
+      <div id="folder-actions-sheet" class="bottom-sheet hidden">
+        <div class="sheet-handle"></div>
+        <div class="sheet-header">
+          <span class="sheet-title" id="folder-actions-sheet-title">Folder</span>
+        </div>
+        <div class="sheet-body">
+          <button class="sheet-action-row" id="btn-sheet-rename-folder">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+            Rename Folder
+          </button>
+          <button class="sheet-action-row danger" id="btn-sheet-delete-folder">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+            </svg>
+            Delete Folder
+          </button>
+        </div>
+      </div>
+
+      <!-- Add Word to Folder Inline Search Sheet -->
+      <div id="add-word-sheet" class="bottom-sheet hidden">
+        <div class="sheet-handle"></div>
+        <div class="sheet-header">
+          <button class="back-btn" id="btn-add-word-cancel">
+            <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+            <span>Cancel</span>
+          </button>
+          <span class="sheet-title">Add word to folder</span>
+        </div>
+        <div class="sheet-search">
+          <svg class="icon search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input id="add-word-search-input" class="search-input" type="text" placeholder="Search Cree or English…" autocomplete="off" />
+        </div>
+        <div id="add-word-results" class="sheet-body"></div>
+      </div>
+
+      <!-- Confirmation Dialog -->
+      <div id="confirm-dialog-backdrop" class="dialog-backdrop hidden">
+        <div class="dialog">
+          <h3 class="dialog-title" id="dialog-title">Confirm</h3>
+          <p class="dialog-body" id="dialog-body"></p>
+          <div class="dialog-actions">
+            <button class="btn-outline" id="btn-dialog-cancel">Cancel</button>
+            <button class="btn-primary" id="btn-dialog-confirm">Confirm</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Expert Mode First-Time Tutorial -->
+      <div id="expert-tutorial-backdrop" class="dialog-backdrop hidden">
+        <div class="dialog" style="max-height:80%; overflow-y:auto">
+          <h3 class="dialog-title">Welcome to Expert Mode</h3>
+          <p style="font-size:13px;color:var(--on-surface-variant);margin-bottom:12px;line-height:1.5">
+            Expert Mode shows full morphological and semantic data. Here are the key terms you'll see:
+          </p>
+          <div class="expert-glossary">
+            <div class="expert-glossary-row"><span class="expert-glossary-abbr">VII</span><span class="expert-glossary-def">Verb, inanimate intransitive — describes an action or state with no animate subject</span></div>
+            <div class="expert-glossary-row"><span class="expert-glossary-abbr">VAI</span><span class="expert-glossary-def">Verb, animate intransitive — describes an action performed by an animate being</span></div>
+            <div class="expert-glossary-row"><span class="expert-glossary-abbr">VTI</span><span class="expert-glossary-def">Verb, transitive inanimate — action with an inanimate object</span></div>
+            <div class="expert-glossary-row"><span class="expert-glossary-abbr">VTA</span><span class="expert-glossary-def">Verb, transitive animate — action with an animate object</span></div>
+            <div class="expert-glossary-row"><span class="expert-glossary-abbr">Indicative</span><span class="expert-glossary-def">The default verb form (non-question, non-command)</span></div>
+            <div class="expert-glossary-row"><span class="expert-glossary-abbr">3rd sg</span><span class="expert-glossary-def">Third person singular — "it" or "he/she/they (one person)"</span></div>
+            <div class="expert-glossary-row"><span class="expert-glossary-abbr">Stem</span><span class="expert-glossary-def">The root morpheme from which the word is built</span></div>
+          </div>
+          <div class="dialog-actions">
+            <button class="btn-primary" id="btn-expert-tutorial-close">Got it</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Help Dialog -->
+      <div id="help-dialog-backdrop" class="dialog-backdrop hidden">
+        <div class="dialog">
+          <h3 class="dialog-title" id="help-dialog-title">Help</h3>
+          <div class="dialog-body help-dialog-body" id="help-dialog-body"></div>
+          <div class="dialog-actions" style="margin-top:16px">
+            <button class="btn-primary" id="btn-help-dialog-close">Got it</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Rename Dialog -->
+      <div id="rename-dialog-backdrop" class="dialog-backdrop hidden">
+        <div class="dialog">
+          <h3 class="dialog-title">Rename Folder</h3>
+          <input type="text" id="rename-input" class="dialog-input" placeholder="Folder name" />
+          <div class="dialog-actions">
+            <button class="btn-outline" id="btn-rename-cancel">Cancel</button>
+            <button class="btn-primary" id="btn-rename-confirm">Save</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- New Folder Dialog -->
+      <div id="new-folder-dialog-backdrop" class="dialog-backdrop hidden">
+        <div class="dialog">
+          <h3 class="dialog-title">New Folder</h3>
+          <input type="text" id="new-folder-input" class="dialog-input" placeholder="Folder name" />
+          <div class="dialog-actions">
+            <button class="btn-outline" id="btn-new-folder-cancel">Cancel</button>
+            <button class="btn-primary" id="btn-new-folder-confirm">Create</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Toast -->
+      <div id="toast" class="toast hidden"></div>
+
+      <!-- Onboarding Overlay -->
+      <div id="onboarding-overlay" class="onboarding-overlay hidden">
+        <div class="onboarding-card">
+          <div class="onboarding-step-indicator" id="onboarding-step-indicator">1 of 4</div>
+          <div class="onboarding-icon" id="onboarding-icon"></div>
+          <h2 class="onboarding-title" id="onboarding-title"></h2>
+          <p class="onboarding-desc" id="onboarding-desc"></p>
+          <div class="onboarding-dots" id="onboarding-dots"></div>
+          <div class="onboarding-actions">
+            <button class="btn-outline" id="btn-onboarding-skip">Skip</button>
+            <button class="btn-primary" id="btn-onboarding-next">Next</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sheet backdrop -->
+      <div id="sheet-backdrop" class="sheet-backdrop hidden"></div>
+
+      <!-- ═══════════════════════════════════════════════════
+           BOTTOM NAVIGATION
+      ════════════════════════════════════════════════════ -->
+      <nav class="bottom-nav">
+        <button class="nav-tab active" data-nav="home">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>
+          </svg>
+          <span>Home</span>
+        </button>
+        <button class="nav-tab" data-nav="search">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <span>Search</span>
+        </button>
+        <button class="nav-tab" data-nav="wordmap">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3"/><circle cx="5" cy="6" r="2"/><circle cx="19" cy="6" r="2"/>
+            <circle cx="5" cy="18" r="2"/><circle cx="19" cy="18" r="2"/>
+            <line x1="7" y1="7" x2="10" y2="10"/><line x1="17" y1="7" x2="14" y2="10"/>
+            <line x1="7" y1="17" x2="10" y2="14"/><line x1="17" y1="17" x2="14" y2="14"/>
+          </svg>
+          <span>Word Map</span>
+        </button>
+        <button class="nav-tab" data-nav="saved">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
+          </svg>
+          <span>Saved</span>
+        </button>
+      </nav>
+
+    </div><!-- /.phone-screen -->
+  </div><!-- /.phone-frame -->
+
+  <script src="js/data.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
