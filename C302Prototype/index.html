@@ -125,10 +125,15 @@
           <div class="hero-card" id="word-detail-hero">
             <div class="hero-cree" id="hero-cree"></div>
             <div class="hero-english" id="hero-english"></div>
+            <div class="hero-context-note hidden" id="hero-context-note"></div>
+            <div class="hero-save-status hidden" id="hero-save-status"></div>
             <div class="hero-tags">
               <span class="tag tag-class" id="hero-class"></span>
               <span class="tag tag-theme" id="hero-theme"></span>
             </div>
+          </div>
+          <div class="detail-view-actions">
+            <button class="chip chip-outline" id="btn-word-detail-expert-toggle">Open expert view</button>
           </div>
 
           <!-- Tab chips -->
@@ -188,6 +193,7 @@
             <div id="expert-mode-note" class="expert-mode-note hidden">
               Expert Mode is on. Word details will show full morphological analysis.
             </div>
+            <button class="btn-outline" id="btn-replay-tutorial" style="width:100%;margin-bottom:16px">Replay full tutorial</button>
           </div>
         </div>
       </div>
@@ -217,6 +223,11 @@
 
         <div class="wordmap-container">
           <svg id="wordmap-svg" width="100%" height="100%"></svg>
+          <div class="wordmap-zoom-controls wordmap-zoom-corner">
+            <button class="chip chip-outline" id="btn-wordmap-zoom-out">-</button>
+            <button class="chip chip-outline" id="btn-wordmap-zoom-reset">100%</button>
+            <button class="chip chip-outline" id="btn-wordmap-zoom-in">+</button>
+          </div>
         </div>
 
         <div class="wordmap-legend">
@@ -256,6 +267,9 @@
             <span class="expert-translation-label">English</span>
             <span class="expert-translation-text" id="expert-translation-text"></span>
           </div>
+          <div class="expert-view-actions">
+            <button class="chip chip-outline" id="btn-expert-simple-view">Simple view</button>
+          </div>
 
           <!-- Morphological Analysis -->
           <div class="expert-section">
@@ -286,6 +300,14 @@
         <header class="app-header">
           <span class="app-title">Saved</span>
         </header>
+        <div class="screen-body" style="padding-bottom:8px">
+          <div class="search-bar-wrap inline" style="position:relative;margin-top:0">
+            <svg class="icon search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input id="saved-search-input" class="search-input" type="text" placeholder="Search saved folders or words…" autocomplete="off" />
+          </div>
+        </div>
 
         <div class="chip-row" id="saved-filter-chips">
           <button class="chip chip-active" data-saved-filter="all">All Folders</button>
@@ -497,9 +519,9 @@
       <!-- Expert Mode First-Time Tutorial -->
       <div id="expert-tutorial-backdrop" class="dialog-backdrop hidden">
         <div class="dialog" style="max-height:80%; overflow-y:auto">
-          <h3 class="dialog-title">Welcome to Expert Mode</h3>
+          <h3 class="dialog-title">Expert Mode: Quick Guide</h3>
           <p style="font-size:13px;color:var(--on-surface-variant);margin-bottom:12px;line-height:1.5">
-            Expert Mode shows full morphological and semantic data. Here are the key terms you'll see:
+            Expert Mode shows deeper morphology and meaning relationships. Here are the core terms:
           </p>
           <div class="expert-glossary">
             <div class="expert-glossary-row"><span class="expert-glossary-abbr">VII</span><span class="expert-glossary-def">Verb, inanimate intransitive — describes an action or state with no animate subject</span></div>
@@ -507,8 +529,9 @@
             <div class="expert-glossary-row"><span class="expert-glossary-abbr">VTI</span><span class="expert-glossary-def">Verb, transitive inanimate — action with an inanimate object</span></div>
             <div class="expert-glossary-row"><span class="expert-glossary-abbr">VTA</span><span class="expert-glossary-def">Verb, transitive animate — action with an animate object</span></div>
             <div class="expert-glossary-row"><span class="expert-glossary-abbr">Indicative</span><span class="expert-glossary-def">The default verb form (non-question, non-command)</span></div>
-            <div class="expert-glossary-row"><span class="expert-glossary-abbr">3rd sg</span><span class="expert-glossary-def">Third person singular — "it" or "he/she/they (one person)"</span></div>
+            <div class="expert-glossary-row"><span class="expert-glossary-abbr">3rd sg</span><span class="expert-glossary-def">Third person singular: one person/thing ("it", "he", or "she")</span></div>
             <div class="expert-glossary-row"><span class="expert-glossary-abbr">Stem</span><span class="expert-glossary-def">The root morpheme from which the word is built</span></div>
+            <div class="expert-glossary-row"><span class="expert-glossary-abbr">hasHypernym</span><span class="expert-glossary-def">Broader category for a word (for example, "snow" belongs to weather concepts)</span></div>
           </div>
           <div class="dialog-actions">
             <button class="btn-primary" id="btn-expert-tutorial-close">Got it</button>

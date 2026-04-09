@@ -1077,41 +1077,9 @@ const THEMES = [
   { id: 'movement', label: 'Movement',            icon: '🚶',  count: 28  },
 ];
 
-// ── DEFAULT FOLDERS (pre-populated for demo) ─────────────────────────────────
-const DEFAULT_FOLDERS = [
-  {
-    id: 'folder-body',
-    name: 'Body Parts',
-    status: 'lesson-ready',
-    icon: '🫀',
-    color: '#E57373',
-    wordIds: ['miskat', 'misipit', 'mistikwan', 'miskisik', 'mikotawan'],
-  },
-  {
-    id: 'folder-weather',
-    name: 'Weather Verbs',
-    status: 'in-progress',
-    icon: '🌦️',
-    color: '#4FC3F7',
-    wordIds: ['mispon', 'kimiwan', 'waseskwan', 'yikwaskwan', 'kisowan', 'tahkayaw', 'kistinipayiw', 'misponisiw'],
-  },
-  {
-    id: 'folder-nature',
-    name: 'Nature & Landscape',
-    status: 'lesson-ready',
-    icon: '🌲',
-    color: '#81C784',
-    wordIds: ['mistik', 'sipiy', 'sakahikan', 'askiy', 'nipiy', 'sakaw', 'pisim'],
-  },
-  {
-    id: 'folder-animals',
-    name: 'Animals',
-    status: 'in-progress',
-    icon: '🐺',
-    color: '#A1887F',
-    wordIds: ['maskwa', 'moswa', 'mahihkan', 'wapos', 'amisk', 'atim', 'piyesiw'],
-  },
-];
+// ── DEFAULT FOLDERS ───────────────────────────────────────────────────────────
+// Start clean for first-time user confidence and unbiased usability sessions.
+const DEFAULT_FOLDERS = [];
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 

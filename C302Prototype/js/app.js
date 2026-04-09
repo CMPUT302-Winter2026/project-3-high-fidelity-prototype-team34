@@ -29,6 +29,14 @@ const state = {
   pendingConfirm:   null,   // callback for confirm dialog
   exportFolderId:   null,
   exportSource:     null,  // "saved" | "folder-open"
+  savedSearchQuery: '',
+  wordMapZoom:      1,
+  wordMapPanX:      0,
+  wordMapPanY:      0,
+  isWordMapDragging: false,
+  wordMapLastDragX: 0,
+  wordMapLastDragY: 0,
+  renderCycleId:    0,
 };
 
 // Sync savedWordIds from folders on boot
@@ -37,6 +45,33 @@ function syncSavedWordIds() {
   state.folders.forEach(f => f.wordIds.forEach(id => state.savedWordIds.add(id)));
 }
 syncSavedWordIds();
+
+function countWordFolders(wordId) {
+  return state.folders.reduce((count, folder) => count + (folder.wordIds.includes(wordId) ? 1 : 0), 0);
+}
+
+function setRuntimeError(context, err) {
+  const message = `${context}: ${err && err.message ? err.message : 'Unknown error'}`;
+  try {
+    console.error(message, err);
+    localStorage.setItem('lastAppError', message);
+  } catch (e) {
+    console.error('Failed to persist runtime error', e);
+  }
+  showErrorScreen('A temporary app error occurred. You can return Home and continue safely.');
+}
+
+function safeRender(context, fn) {
+  const cycle = ++state.renderCycleId;
+  requestAnimationFrame(() => {
+    if (cycle !== state.renderCycleId) return;
+    try {
+      fn();
+    } catch (err) {
+      setRuntimeError(context, err);
+    }
+  });
+}
 
 // ══════════════════════════════════════════════════════
 // SCREEN ROUTER
@@ -55,18 +90,27 @@ const SCREEN_NAV_TAB = {
 };
 
 function showScreen(id) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  const screen = document.getElementById(id);
-  if (screen) screen.classList.add('active');
+  try {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    const screen = document.getElementById(id);
+    if (screen) screen.classList.add('active');
 
-  // Update nav tabs
-  const navKey = SCREEN_NAV_TAB[id] || 'home';
-  document.querySelectorAll('.nav-tab').forEach(tab => {
-    tab.classList.toggle('active', tab.dataset.nav === navKey);
-  });
+    // Update nav tabs
+    const navKey = SCREEN_NAV_TAB[id] || 'home';
+    document.querySelectorAll('.nav-tab').forEach(tab => {
+      tab.classList.toggle('active', tab.dataset.nav === navKey);
+    });
 
-  // Close any open overflow menus
-  closeAllOverflowMenus();
+    // Close any open overflow menus
+    closeAllOverflowMenus();
+  } catch (err) {
+    setRuntimeError(`showScreen(${id})`, err);
+  }
+
+  setTimeout(() => {
+    const hasActive = !!document.querySelector('.screen.active');
+    if (!hasActive) showScreen('screen-home');
+  }, 220);
 }
 
 // ══════════════════════════════════════════════════════
@@ -225,14 +269,22 @@ function getFolderById(id) {
 
 function addWordToFolder(folderId, wordId) {
   const folder = getFolderById(folderId);
-  if (folder && !folder.wordIds.includes(wordId)) {
-    folder.wordIds.push(wordId);
-    state.savedWordIds.add(wordId);
-  }
+  if (!folder) return { added: false, reason: 'missing-folder' };
+  if (folder.wordIds.includes(wordId)) return { added: false, reason: 'already-saved' };
+  folder.wordIds.push(wordId);
+  state.savedWordIds.add(wordId);
+  return { added: true };
 }
 
 function addWordsToFolder(folderId, wordIds) {
-  wordIds.forEach(id => addWordToFolder(folderId, id));
+  let addedCount = 0;
+  let skippedCount = 0;
+  wordIds.forEach(id => {
+    const result = addWordToFolder(folderId, id);
+    if (result.added) addedCount++;
+    else skippedCount++;
+  });
+  return { addedCount, skippedCount };
 }
 
 function removeWordFromFolder(folderId, wordId) {
@@ -258,42 +310,69 @@ function openFolderPicker(mode, wordIds) {
   const list = document.getElementById('folder-picker-list');
   list.innerHTML = '';
 
+  const selectedFolderIds = new Set();
+
+  const commitSelection = () => {
+    if (selectedFolderIds.size === 0) {
+      showToast('Select at least one folder');
+      return;
+    }
+    let totalAdded = 0;
+    let totalSkipped = 0;
+    selectedFolderIds.forEach(folderId => {
+      const { addedCount, skippedCount } = addWordsToFolder(folderId, wordIds);
+      totalAdded += addedCount;
+      totalSkipped += skippedCount;
+    });
+    updateBookmarkIcons();
+    closeSheet('folder-picker-sheet');
+    if (mode === 'multi-add') exitSelectMode();
+    if (totalAdded > 0 && totalSkipped > 0) {
+      showToast(`Added ${totalAdded}; ${totalSkipped} already saved`);
+    } else if (totalAdded > 0) {
+      showToast(`Saved to ${selectedFolderIds.size} folder${selectedFolderIds.size !== 1 ? 's' : ''}`);
+    } else {
+      showToast('All selected words were already saved');
+    }
+  };
+
   state.folders.forEach(folder => {
     const row = document.createElement('div');
     row.className = 'folder-picker-row';
     row.innerHTML = `
-      <span class="fp-name">${folder.name}</span>
-      <span class="fp-count">${folder.wordIds.length} words</span>`;
+      <div>
+        <span class="fp-name">${folder.name}</span>
+        <span class="fp-count">${folder.wordIds.length} words</span>
+      </div>
+      <div class="word-checkbox" style="width:20px;height:20px"></div>`;
+    const cb = row.querySelector('.word-checkbox');
     row.addEventListener('click', () => {
-      if (mode === 'bookmark') {
-        addWordToFolder(folder.id, state.currentWordId);
-        updateBookmarkIcons();
-        showToast(`Saved to "${folder.name}"`);
+      if (selectedFolderIds.has(folder.id)) {
+        selectedFolderIds.delete(folder.id);
+        cb.classList.remove('checked');
       } else {
-        addWordsToFolder(folder.id, wordIds);
-        showToast(`${wordIds.length} word${wordIds.length !== 1 ? 's' : ''} added to "${folder.name}"`);
-        exitSelectMode();
+        selectedFolderIds.add(folder.id);
+        cb.classList.add('checked');
       }
-      closeSheet('folder-picker-sheet');
     });
     list.appendChild(row);
   });
+
+  const applyBtn = document.createElement('button');
+  applyBtn.className = 'btn-primary';
+  applyBtn.style.width = 'calc(100% - 32px)';
+  applyBtn.style.margin = '8px 16px';
+  applyBtn.textContent = 'Save selected';
+  applyBtn.addEventListener('click', commitSelection);
+  list.appendChild(applyBtn);
 
   const newRow = document.createElement('div');
   newRow.className = 'folder-picker-row';
   newRow.innerHTML = `<span class="fp-name fp-new">+ New folder</span>`;
   newRow.addEventListener('click', () => {
-    closeSheet('folder-picker-sheet');
     showNewFolderDialog(folder => {
-      if (mode === 'bookmark') {
-        addWordToFolder(folder.id, state.currentWordId);
-        updateBookmarkIcons();
-        showToast(`Saved to "${folder.name}"`);
-      } else {
-        addWordsToFolder(folder.id, wordIds);
-        showToast(`${wordIds.length} word${wordIds.length !== 1 ? 's' : ''} added to "${folder.name}"`);
-        exitSelectMode();
-      }
+      selectedFolderIds.add(folder.id);
+      commitSelection();
     });
   });
   list.appendChild(newRow);
@@ -656,6 +735,7 @@ function renderWordDetail(wordId) {
   document.getElementById('hero-english').textContent = word.english;
   document.getElementById('hero-class').textContent   = word.wordClassLabel;
   document.getElementById('hero-theme').textContent   = word.theme.charAt(0).toUpperCase() + word.theme.slice(1);
+  renderWordContextHints(word);
 
   // Bookmark state
   updateBookmarkIcons();
@@ -671,6 +751,31 @@ function renderWordDetail(wordId) {
 
   // Details
   renderDetailsTable(word);
+
+  const expertBtn = document.getElementById('btn-word-detail-expert-toggle');
+  expertBtn.textContent = state.expertMode ? 'Expert mode on' : 'Open expert view';
+  expertBtn.classList.toggle('chip-active', state.expertMode);
+}
+
+function renderWordContextHints(word) {
+  const noteEl = document.getElementById('hero-context-note');
+  const saveEl = document.getElementById('hero-save-status');
+  noteEl.classList.add('hidden');
+  saveEl.classList.add('hidden');
+
+  if (word.wordClassCode.startsWith('VII') && /^It is /i.test(word.english)) {
+    noteEl.textContent = 'Cree often expresses weather concepts as event/state verbs. A result like "It is snowing" is the expected form for this kind of search.';
+    noteEl.classList.remove('hidden');
+  }
+
+  const folderCount = countWordFolders(word.id);
+  if (folderCount > 0) {
+    saveEl.textContent = `Saved in ${folderCount} folder${folderCount !== 1 ? 's' : ''}`;
+    saveEl.classList.remove('hidden');
+  } else {
+    saveEl.textContent = 'Not saved yet. Tap the bookmark to add it to a folder.';
+    saveEl.classList.remove('hidden');
+  }
 }
 
 function renderRelatedWords(word) {
@@ -788,6 +893,12 @@ function handleBookmarkToggle() {
 document.getElementById('btn-word-detail-bookmark').addEventListener('click', () => {
   handleBookmarkToggle();
 });
+document.getElementById('btn-word-detail-expert-toggle').addEventListener('click', () => {
+  const wordId = state.currentWordId;
+  if (!wordId) return;
+  renderExpertView(wordId);
+  showScreen('screen-expert-view');
+});
 
 // ══════════════════════════════════════════════════════
 // SCREEN 4 – ACCOUNT
@@ -813,30 +924,41 @@ document.getElementById('btn-expert-tutorial-close').addEventListener('click', (
 // SCREEN 5 – WORD MAP
 // ══════════════════════════════════════════════════════
 function renderWordMap() {
-  const wordId = state.wordMapFocusId || 'mispon';
-  const { center, nodes } = getWordMapNodes(wordId);
-  if (!center) return;
+  safeRender('renderWordMap', () => {
+    const wordId = state.wordMapFocusId || 'mispon';
+    const { center, nodes } = getWordMapNodes(wordId);
+    if (!center) return;
 
-  const backBtn = document.getElementById('btn-word-map-back');
-  const backLabel = document.getElementById('word-map-back-label');
+    const backBtn = document.getElementById('btn-word-map-back');
+    const backLabel = document.getElementById('word-map-back-label');
 
-  if (state.navSource === 'search' || state.navSource === 'wordmap') {
-    backLabel.textContent = center.cree;
-    backLabel.classList.remove('hidden');
-    backBtn.style.visibility = 'visible';
-  } else {
-    backLabel.classList.add('hidden');
-    backBtn.style.visibility = 'hidden';
-  }
+    if (state.navSource === 'search' || state.navSource === 'wordmap') {
+      backLabel.textContent = center.cree;
+      backLabel.classList.remove('hidden');
+      backBtn.style.visibility = 'visible';
+    } else {
+      backLabel.classList.add('hidden');
+      backBtn.style.visibility = 'hidden';
+    }
 
-  drawWordMapSVG(center, nodes, state.wordMapFilter);
+    drawWordMapSVG(center, nodes, state.wordMapFilter);
+  });
 }
 
 function drawWordMapSVG(center, nodes, filter) {
   const svg = document.getElementById('wordmap-svg');
   const W = svg.parentElement.clientWidth  || 358;
   const H = svg.parentElement.clientHeight || 380;
-  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  const scale = Math.max(0.6, Math.min(1.8, state.wordMapZoom || 1));
+  const viewW = W / scale;
+  const viewH = H / scale;
+  const maxPanX = Math.max(0, (W - viewW) / 2);
+  const maxPanY = Math.max(0, (H - viewH) / 2);
+  state.wordMapPanX = Math.max(-maxPanX, Math.min(maxPanX, state.wordMapPanX));
+  state.wordMapPanY = Math.max(-maxPanY, Math.min(maxPanY, state.wordMapPanY));
+  const viewX = (W - viewW) / 2 - state.wordMapPanX;
+  const viewY = (H - viewH) / 2 - state.wordMapPanY;
+  svg.setAttribute('viewBox', `${viewX} ${viewY} ${viewW} ${viewH}`);
   svg.innerHTML = '';
 
   const cx = W / 2;
@@ -957,6 +1079,55 @@ document.getElementById('btn-word-map-back').addEventListener('click', () => {
     showScreen('screen-home');
   }
 });
+document.getElementById('btn-wordmap-zoom-in').addEventListener('click', () => {
+  state.wordMapZoom = Math.min(1.8, state.wordMapZoom + 0.2);
+  document.getElementById('btn-wordmap-zoom-reset').textContent = `${Math.round(state.wordMapZoom * 100)}%`;
+  renderWordMap();
+});
+document.getElementById('btn-wordmap-zoom-out').addEventListener('click', () => {
+  state.wordMapZoom = Math.max(0.6, state.wordMapZoom - 0.2);
+  if (state.wordMapZoom <= 1) {
+    state.wordMapPanX = 0;
+    state.wordMapPanY = 0;
+  }
+  document.getElementById('btn-wordmap-zoom-reset').textContent = `${Math.round(state.wordMapZoom * 100)}%`;
+  renderWordMap();
+});
+document.getElementById('btn-wordmap-zoom-reset').addEventListener('click', () => {
+  state.wordMapZoom = 1;
+  state.wordMapPanX = 0;
+  state.wordMapPanY = 0;
+  document.getElementById('btn-wordmap-zoom-reset').textContent = '100%';
+  renderWordMap();
+});
+
+const wordMapSvg = document.getElementById('wordmap-svg');
+wordMapSvg.addEventListener('pointerdown', e => {
+  if (state.wordMapZoom <= 1) return;
+  state.isWordMapDragging = true;
+  state.wordMapLastDragX = e.clientX;
+  state.wordMapLastDragY = e.clientY;
+  wordMapSvg.setPointerCapture(e.pointerId);
+});
+wordMapSvg.addEventListener('pointermove', e => {
+  if (!state.isWordMapDragging) return;
+  const dx = e.clientX - state.wordMapLastDragX;
+  const dy = e.clientY - state.wordMapLastDragY;
+  state.wordMapLastDragX = e.clientX;
+  state.wordMapLastDragY = e.clientY;
+  const scale = Math.max(0.6, Math.min(1.8, state.wordMapZoom || 1));
+  state.wordMapPanX += dx / scale;
+  state.wordMapPanY += dy / scale;
+  renderWordMap();
+});
+wordMapSvg.addEventListener('pointerup', e => {
+  state.isWordMapDragging = false;
+  if (wordMapSvg.hasPointerCapture(e.pointerId)) wordMapSvg.releasePointerCapture(e.pointerId);
+});
+wordMapSvg.addEventListener('pointercancel', e => {
+  state.isWordMapDragging = false;
+  if (wordMapSvg.hasPointerCapture(e.pointerId)) wordMapSvg.releasePointerCapture(e.pointerId);
+});
 
 // ══════════════════════════════════════════════════════
 // SCREEN 6 – EXPERT VIEW
@@ -971,9 +1142,9 @@ function renderExpertView(wordId) {
   document.getElementById('expert-back-label').textContent = backLabel;
 
   document.getElementById('expert-word-title').textContent =
-    `${word.cree} – Expert view`;
+    `${word.cree} - Expert view`;
   document.getElementById('expert-word-sub').textContent =
-    `${word.wordClassCode} · nêhiyawêwin · itwêwina`;
+    `Expert mode on · ${word.wordClassCode} · nêhiyawêwin`;
 
   document.getElementById('expert-translation-text').textContent = word.english;
 
@@ -1051,14 +1222,14 @@ function renderSemRelations(word) {
   const derived   = w.relatedWords.find(r => r.type === 'derived');
 
   const rows = [
-    { key: 'hasHypernym',   value: hypernym ? getWord(hypernym.id)?.cree || hypernym.id : '—' },
-    { key: 'isOppositeOf',  value: opposite ? getWord(opposite.id)?.cree || opposite.id : '—' },
-    { key: 'hasDerivedNoun',value: derived   ? getWord(derived.id)?.cree  || derived.id  : '—' },
-    { key: 'inDomain',      value: w.theme.charAt(0).toUpperCase() + w.theme.slice(1) + ', Nature' },
+    { key: 'hasHypernym', label: 'Broader category (hypernym)', value: hypernym ? getWord(hypernym.id)?.cree || hypernym.id : '—' },
+    { key: 'isOppositeOf', label: 'Opposite meaning', value: opposite ? getWord(opposite.id)?.cree || opposite.id : '—' },
+    { key: 'hasDerivedNoun', label: 'Derived form', value: derived   ? getWord(derived.id)?.cree  || derived.id  : '—' },
+    { key: 'inDomain', label: 'Theme domain', value: w.theme.charAt(0).toUpperCase() + w.theme.slice(1) + ', Nature' },
   ];
   el.innerHTML = rows.map(r => `
     <div class="sem-rel-row">
-      <span class="sem-rel-key">${r.key}</span>
+      <span class="sem-rel-key" title="${r.key}">${r.label}</span>
       <span class="sem-rel-value">${r.value}</span>
     </div>`).join('');
 }
@@ -1095,6 +1266,12 @@ document.getElementById('btn-expert-back').addEventListener('click', () => {
 document.getElementById('btn-expert-bookmark').addEventListener('click', () => {
   handleBookmarkToggle();
 });
+document.getElementById('btn-expert-simple-view').addEventListener('click', () => {
+  const wordId = state.currentWordId;
+  if (!wordId) return;
+  renderWordDetail(wordId);
+  showScreen('screen-word-detail');
+});
 
 // ══════════════════════════════════════════════════════
 // SCREEN 7 – SAVED – FOLDER LIST
@@ -1108,6 +1285,16 @@ function renderSavedFolderList() {
   const sf = state.savedFilter;
   if (sf === 'recent') folders = [...folders].reverse().slice(0, 3);
   // "shared" — all for prototype
+  const sq = normalize(state.savedSearchQuery || '');
+  if (sq) {
+    folders = folders.filter(folder => {
+      if (normalize(folder.name).includes(sq)) return true;
+      return folder.wordIds.some(id => {
+        const w = getWord(id);
+        return w && (normalize(w.cree).includes(sq) || normalize(w.english).includes(sq));
+      });
+    });
+  }
 
   if (folders.length === 0) {
     emptyEl.classList.remove('hidden');
@@ -1178,6 +1365,10 @@ document.getElementById('saved-filter-chips').addEventListener('click', e => {
   state.savedFilter = btn.dataset.savedFilter;
   document.querySelectorAll('#saved-filter-chips .chip').forEach(c =>
     c.classList.toggle('chip-active', c.dataset.savedFilter === state.savedFilter));
+  renderSavedFolderList();
+});
+document.getElementById('saved-search-input').addEventListener('input', e => {
+  state.savedSearchQuery = e.target.value.trim();
   renderSavedFolderList();
 });
 
@@ -1549,11 +1740,11 @@ document.getElementById('btn-help-dialog-close').addEventListener('click', () =>
 document.getElementById('btn-help-expert').addEventListener('click', () => {
   showHelpDialog('Expert View', `
     <div class="help-dialog-body">
-      <p>This screen shows full linguistic data for the selected word, split into three sections:</p>
+      <p>This screen shows detailed linguistic information for one word in three sections:</p>
       <ul>
-        <li><strong>Morphological Analysis</strong> — breaks the word into its stem and grammatical tags, showing how the form is built.</li>
-        <li><strong>Semantic Relations</strong> — lists formal relationships like hypernym (broader concept), opposite, and derived forms.</li>
-        <li><strong>Semantic Gap Analysis</strong> — highlights related concepts that may be missing or undocumented in the itwêwina database.</li>
+        <li><strong>Morphological Analysis</strong> - shows stem parts and grammar tags used to build the form.</li>
+        <li><strong>Semantic Relations</strong> - shows links such as broader category (hypernym), opposite, and derived forms.</li>
+        <li><strong>Semantic Gap Analysis</strong> - flags related concepts that may be missing or undocumented.</li>
       </ul>
     </div>`);
 });
@@ -1576,14 +1767,14 @@ document.getElementById('btn-help-export').addEventListener('click', () => {
 document.getElementById('btn-help-wordmap').addEventListener('click', () => {
   showHelpDialog('How to Read the Word Map', `
     <div class="help-dialog-body">
-      <p>The Word Map shows how the central word connects to other words. Each node is a word; lines show the relationship type:</p>
+      <p>Word Map shows how the center word connects to other words. Each node is a word; each line is one relationship type:</p>
       <ul>
         <li><strong>Similar</strong> — words with a closely related meaning.</li>
-        <li><strong>Broader</strong> — a more general concept (e.g. "weather" for "snow").</li>
-        <li><strong>Derived / Narrower</strong> — a more specific word derived from this one.</li>
+        <li><strong>Broader</strong> — a more general concept (for example, "weather" for "snow").</li>
+        <li><strong>Derived</strong> — a form built from this word or closely related to it.</li>
         <li><strong>Opposite</strong> — a word with an opposing meaning.</li>
       </ul>
-      <p>Tap any node to explore that word. Use the filter chips at the top to show only one relationship type at a time.</p>
+      <p>Tap a node to explore it. Use filter chips and zoom controls to focus on one relationship type at a time.</p>
     </div>`);
 });
 
@@ -1592,33 +1783,67 @@ document.getElementById('btn-help-wordmap').addEventListener('click', () => {
 // ══════════════════════════════════════════════════════
 const ONBOARDING_STEPS = [
   {
-    icon: '🔍',
-    title: 'Search Cree or English',
-    desc: 'Type any Cree or English word into the search bar to find its meaning, word class, and related forms.',
+    icon: '👋',
+    section: 'Getting Started',
+    title: 'Welcome to Vocabulary Explorer',
+    desc: 'This short tutorial covers search, saved folders, Word Map, Expert Mode, key terms, and common Cree/English differences.',
   },
   {
-    icon: '🌿',
-    title: 'Browse by Theme',
-    desc: 'Not sure where to start? Explore vocabulary grouped by topic — Weather, Animals, Family, and more.',
+    icon: '🔍',
+    section: 'Basic Flow',
+    title: 'Search first',
+    desc: 'Use Home or Search to find Cree or English words, then open a result to view Related words, Forms, and Details.',
   },
   {
     icon: '📁',
-    title: 'Save Words to Folders',
-    desc: 'Tap the bookmark icon on any word to save it to a folder. Great for building lesson sets or study lists.',
+    section: 'Basic Flow',
+    title: 'Saving and folders',
+    desc: 'Use the bookmark icon to save words. You can save one word to multiple folders and check all saved items in the Saved tab.',
   },
   {
     icon: '🗺️',
-    title: 'Explore the Word Map',
-    desc: 'See how words connect — similar meanings, opposites, broader concepts, and derived forms — all at a glance.',
+    section: 'Basic Flow',
+    title: 'Word Map overview',
+    desc: 'Word Map shows relationships (similar, broader, opposite, derived). Tap nodes to explore, then use filters and zoom for readability.',
+  },
+  {
+    icon: '⚙️',
+    section: 'Expert Mode',
+    title: 'Where to find Expert Mode',
+    desc: 'From Home, tap the account icon and turn on Expert Mode in Account settings. You can also open Expert View directly from Word Detail.',
+  },
+  {
+    icon: '🧠',
+    section: 'Terminology',
+    title: 'Expert terminology, simplified',
+    desc: 'VII/VAI/VTI/VTA are verb classes. Hypernym means a broader category. Derived means a form built from another word.',
+  },
+  {
+    icon: '🌨️',
+    section: 'Cree Language Quirks',
+    title: 'Cree and English do not always map 1:1',
+    desc: 'Some English nouns appear as Cree event/state verbs. For example, searching "snow" may return "it is snowing." This is expected.',
+  },
+  {
+    icon: '✅',
+    section: 'Done',
+    title: 'You are ready',
+    desc: 'Replay this tutorial anytime from Account. You will also see context tips and glossary hints in key screens.',
   },
 ];
 
 let onboardingStep = 0;
+const ONBOARDING_VERSION = '2';
+const ONBOARDING_DONE_KEY = `onboardingDone_v${ONBOARDING_VERSION}`;
 
 function showOnboarding() {
   onboardingStep = 0;
   renderOnboardingStep();
-  document.getElementById('onboarding-overlay').classList.remove('hidden');
+  const overlay = document.getElementById('onboarding-overlay');
+  const card = overlay.querySelector('.onboarding-card');
+  overlay.classList.remove('hidden');
+  overlay.classList.add('top');
+  card.classList.add('full');
 }
 
 function renderOnboardingStep() {
@@ -1626,8 +1851,8 @@ function renderOnboardingStep() {
   const total = ONBOARDING_STEPS.length;
   document.getElementById('onboarding-step-indicator').textContent = `${onboardingStep + 1} of ${total}`;
   document.getElementById('onboarding-icon').textContent  = step.icon;
-  document.getElementById('onboarding-title').textContent = step.title;
-  document.getElementById('onboarding-desc').textContent  = step.desc;
+  document.getElementById('onboarding-title').innerHTML = `<div class="onboarding-title-line">${step.section}</div>${step.title}`;
+  document.getElementById('onboarding-desc').textContent = step.desc;
 
   // Dots
   const dots = document.getElementById('onboarding-dots');
@@ -1641,11 +1866,19 @@ function renderOnboardingStep() {
   // Next button label
   const nextBtn = document.getElementById('btn-onboarding-next');
   nextBtn.textContent = onboardingStep === total - 1 ? 'Get Started' : 'Next';
+
+  const accountBtn = document.getElementById('btn-go-account');
+  accountBtn.classList.toggle('spotlight', step.section === 'Expert Mode');
 }
 
 function finishOnboarding() {
-  localStorage.setItem('onboardingDone', '1');
-  document.getElementById('onboarding-overlay').classList.add('hidden');
+  localStorage.setItem(ONBOARDING_DONE_KEY, '1');
+  const overlay = document.getElementById('onboarding-overlay');
+  const card = overlay.querySelector('.onboarding-card');
+  overlay.classList.add('hidden');
+  overlay.classList.remove('top');
+  card.classList.remove('full');
+  document.getElementById('btn-go-account').classList.remove('spotlight');
 }
 
 document.getElementById('btn-onboarding-next').addEventListener('click', () => {
@@ -1657,6 +1890,9 @@ document.getElementById('btn-onboarding-next').addEventListener('click', () => {
   }
 });
 document.getElementById('btn-onboarding-skip').addEventListener('click', finishOnboarding);
+document.getElementById('btn-replay-tutorial').addEventListener('click', () => {
+  showOnboarding();
+});
 
 // ══════════════════════════════════════════════════════
 // ERROR SCREEN
@@ -1674,15 +1910,20 @@ document.getElementById('btn-error-back').addEventListener('click', () => {
   showScreen('screen-home');
 });
 
+window.addEventListener('error', e => {
+  setRuntimeError('Unhandled error', e.error || new Error(e.message));
+});
+window.addEventListener('unhandledrejection', e => {
+  setRuntimeError('Unhandled promise rejection', e.reason || new Error('Unknown rejection'));
+});
+
 // ══════════════════════════════════════════════════════
 // INITIALISE
 // ══════════════════════════════════════════════════════
 function init() {
   renderHome();
   showScreen('screen-home');
-  if (!localStorage.getItem('onboardingDone')) {
-    showOnboarding();
-  }
+  showOnboarding();
 }
 
 init();
